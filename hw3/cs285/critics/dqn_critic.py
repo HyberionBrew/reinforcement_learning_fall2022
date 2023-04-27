@@ -67,8 +67,7 @@ class DQNCritic(BaseCritic):
         
         # TODO compute the Q-values from the target network 
         qa_tp1_values = self.q_net_target(next_ob_no)
-        print(self.q_net)
-        print(self.q_net_target)
+
         if self.double_q:
             # You must fill this part for Q2 of the Q-learning portion of the homework.
             # In double Q-learning, the best action is selected using the Q-network that
