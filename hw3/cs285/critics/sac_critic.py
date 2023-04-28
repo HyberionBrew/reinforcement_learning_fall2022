@@ -5,6 +5,7 @@ import numpy as np
 from cs285.infrastructure import pytorch_util as ptu
 from cs285.infrastructure import sac_utils
 import torch
+import cs285.infrastructure.pytorch_util as ptu
 
 class SACCritic(nn.Module, BaseCritic):
     """
@@ -56,7 +57,12 @@ class SACCritic(nn.Module, BaseCritic):
 
     def forward(self, obs: torch.Tensor, action: torch.Tensor):
         # TODO: return the two q values
-        return values
+        obs = ptu.from_numpy(obs)
+        actions1 = self.Q1(obs)
+        q_1_values = torch.gather(actions1, 1, action.unsqueeze(1)).squeeze(1)
+        actions2 = self.Q2(obs)
+        q_2_values = torch.gather(actions2, 1, action.unsqueeze(1)).squeeze(1)
+        return [q_1_values, q_2_values]
 
 
 

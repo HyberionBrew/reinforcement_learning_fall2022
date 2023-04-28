@@ -9,7 +9,9 @@ from .base_agent import BaseAgent
 import gym
 from cs285.policies.sac_policy import MLPPolicySAC
 from cs285.critics.sac_critic import SACCritic
+from cs285.infrastructure.sac_utils import *
 import cs285.infrastructure.pytorch_util as ptu
+import torch
 
 class SACAgent(BaseAgent):
     def __init__(self, env: gym.Env, agent_params):
@@ -44,32 +46,61 @@ class SACAgent(BaseAgent):
 
         self.training_step = 0
         self.replay_buffer = ReplayBuffer(max_size=100000)
+        self.loss = nn.SmoothL1Loss()  # AKA Huber loss
 
     def update_critic(self, ob_no, ac_na, next_ob_no, re_n, terminal_n):
         # TODO: 
         # 1. Compute the target Q value. 
         # HINT: You need to use the entropy term (alpha)
         # 2. Get current Q estimates and calculate critic loss
-        # 3. Optimize the critic  
-        return critic_loss
+        # 3. Optimize the critic 
+
+
+        # calculate target Q values
+        q_target_min = torch.min(self.critic_target(next_ob_no, self.actor(next_ob_no)))
+        entropy_reg = q_target_min - TODO
+        value = re_n + entropy_reg * (1 - terminal_n) * self.gamma
+        target = value.detach()
+        
+        # get current Q estimates
+        qa_t_values = self.critic(ob_no)
+        q_t_values = torch.gather(qa_t_values, 1, ac_na.unsqueeze(1)).squeeze(1)
+
+        # optimize the critic
+        assert q_t_values.shape == target.shape
+        critic_loss = self.loss(q_t_values, target)
+
+        self.critic.optimizer.zero_grad()
+        critic_loss.backward()
+        self.optimizer.step()
+        return critic_loss.item()
 
     def train(self, ob_no, ac_na, re_n, next_ob_no, terminal_n):
         # TODO 
         # 1. Implement the following pseudocode:
         # for agent_params['num_critic_updates_per_agent_update'] steps,
         #     update the critic
-
+        critic_loss = 0
+        for _ in range(self.agent_params['num_critic_updates_per_agent_update']):
+            critic_loss += self.update_critic(ob_no, ac_na, next_ob_no, re_n, terminal_n)
+        
         # 2. Softly update the target every critic_target_update_frequency (HINT: look at sac_utils)
-
+        if self.training_step % self.critic_target_update_frequency == 0:
+            soft_update_params(self.critic, self.critic_target, self.critic_tau)
+        
         # 3. Implement following pseudocode:
         # If you need to update actor
         # for agent_params['num_actor_updates_per_agent_update'] steps,
         #     update the actor
-
+        actor_loss = 0
+        if self.training_step % self.actor_update_frequency == 0:
+            for _ in range(self.agent_params['num_actor_updates_per_agent_update']):
+                actor_loss += self.actor.update(ob_no, critic=self.critic) # TODO!
+        
         # 4. gather losses for logging
         loss = OrderedDict()
-        loss['Critic_Loss'] = TODO
-        loss['Actor_Loss'] = TODO
+        loss['Critic_Loss'] = critic_loss
+        loss['Actor_Loss'] = actor_loss
         loss['Alpha_Loss'] = TODO
         loss['Temperature'] = TODO
 

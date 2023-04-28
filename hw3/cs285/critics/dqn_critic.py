@@ -77,7 +77,7 @@ class DQNCritic(BaseCritic):
             # select the best action according to the current Q network
             qa_on1_values = self.q_net(next_ob_no)
             argmax_indices = torch.argmax(qa_on1_values, 1)
-            q_tp1, _ = torch.gather(qa_tp1_values, 1, argmax_indices.unsqueeze(1)).squeeze(1)
+            q_tp1 = torch.gather(qa_tp1_values, 1, argmax_indices.unsqueeze(1)).squeeze(1)
         else:
             q_tp1, _ = qa_tp1_values.max(dim=1)
 

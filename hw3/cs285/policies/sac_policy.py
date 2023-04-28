@@ -36,6 +36,7 @@ class MLPPolicySAC(MLPPolicy):
     @property
     def alpha(self):
         # TODO: Formulate entropy term
+        
         return entropy
 
     def get_action(self, obs: np.ndarray, sample=True) -> np.ndarray:
