@@ -57,13 +57,14 @@ class SACCritic(nn.Module, BaseCritic):
 
     def forward(self, obs: torch.Tensor, action: torch.Tensor):
         # TODO: return the two q values
-        obs = ptu.from_numpy(obs)
-        actions1 = self.Q1(obs)
-        q_1_values = torch.gather(actions1, 1, action.unsqueeze(1)).squeeze(1)
-        actions2 = self.Q2(obs)
-        q_2_values = torch.gather(actions2, 1, action.unsqueeze(1)).squeeze(1)
-        return [q_1_values, q_2_values]
+        # obs = ptu.from_numpy(obs)
+        ins = torch.cat([obs, action], dim=1)
+        q1 = self.Q1(ins)
+        #q_1_values = torch.gather(actions1, 1, action.unsqueeze(1)).squeeze(1)
+        q2 = self.Q2(ins)
+        #q_2_values = torch.gather(actions2, 1, action.unsqueeze(1)).squeeze(1)
+        return q1, q2
 
 
 
-        
+    # update ?

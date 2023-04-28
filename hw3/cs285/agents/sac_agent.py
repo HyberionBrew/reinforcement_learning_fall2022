@@ -57,22 +57,42 @@ class SACAgent(BaseAgent):
 
 
         # calculate target Q values
-        q_target_min = torch.min(self.critic_target(next_ob_no, self.actor(next_ob_no)))
-        entropy_reg = q_target_min - TODO
-        value = re_n + entropy_reg * (1 - terminal_n) * self.gamma
-        target = value.detach()
+        next_ob_no = ptu.from_numpy(next_ob_no)
+        ob_no = ptu.from_numpy(ob_no)
+        ac_na = ptu.from_numpy(ac_na)
+        re_n = ptu.from_numpy(re_n)
+        terminal_n = ptu.from_numpy(terminal_n)
+        alpha = self.actor.alpha.detach()  # .alpha.detach()
+
+        next_ac_no_distr = self.actor(next_ob_no)
+        next_ac_no = next_ac_no_distr.sample()
+        q_1, q_2 = self.critic_target(next_ob_no, next_ac_no)
+        q_target_min = torch.min(q_1,q_2)
+        next_ac_logprob = next_ac_no_distr.log_prob(next_ac_no).detach()
+        entropy_reg = q_target_min - alpha * next_ac_logprob
+        #print(entropy_reg.shape)
+        #print(re_n.shape)
+        #print(terminal_n.shape)
+        value = re_n + entropy_reg.squeeze() * (1 - terminal_n) * self.gamma
+        target = value.detach().unsqueeze(1)
         
-        # get current Q estimates
-        qa_t_values = self.critic(ob_no)
-        q_t_values = torch.gather(qa_t_values, 1, ac_na.unsqueeze(1)).squeeze(1)
+
+        # now update each critic
+        qa_t_values = self.critic(ob_no, ac_na)
+        # critic 0
+        #print(qa_t_values[0].shape)
+        #print(target.shape)
+        assert qa_t_values[0].shape == target.shape
+        critic_loss0 = self.loss(qa_t_values[0], target)
+
+        critic_loss1 = self.loss(qa_t_values[1], target)
+
+        critic_loss = critic_loss0 + critic_loss1
 
         # optimize the critic
-        assert q_t_values.shape == target.shape
-        critic_loss = self.loss(q_t_values, target)
-
         self.critic.optimizer.zero_grad()
         critic_loss.backward()
-        self.optimizer.step()
+        self.critic.optimizer.step()
         return critic_loss.item()
 
     def train(self, ob_no, ac_na, re_n, next_ob_no, terminal_n):
@@ -93,16 +113,23 @@ class SACAgent(BaseAgent):
         # for agent_params['num_actor_updates_per_agent_update'] steps,
         #     update the actor
         actor_loss = 0
+        alpha_loss = 0
+        temperature = 0
         if self.training_step % self.actor_update_frequency == 0:
             for _ in range(self.agent_params['num_actor_updates_per_agent_update']):
-                actor_loss += self.actor.update(ob_no, critic=self.critic) # TODO!
+                loss = self.actor.update(ob_no, critic=self.critic)
+                actor_loss += loss[0]
+                alpha_loss += loss[1]
+                temperature = loss[2]
+                #actor_loss, alpha_loss, temperature += 0,0,0 #self.actor.update(ob_no, critic=self.critic) # TODO!
         
         # 4. gather losses for logging
         loss = OrderedDict()
         loss['Critic_Loss'] = critic_loss
         loss['Actor_Loss'] = actor_loss
-        loss['Alpha_Loss'] = TODO
-        loss['Temperature'] = TODO
+        loss['Alpha_Loss'] = alpha_loss
+        loss['Temperature'] = temperature
+        print("ji")
 
         return loss
 
