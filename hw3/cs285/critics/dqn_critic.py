@@ -56,14 +56,16 @@ class DQNCritic(BaseCritic):
             returns:
                 nothing
         """
+        # formula: theta = theta - alpha * MSE( Q(s,a) - y)
+        # where y is the better estimate of Q(s,a) = r + gamma * max_a' Q(s',a')
         ob_no = ptu.from_numpy(ob_no)
         ac_na = ptu.from_numpy(ac_na).to(torch.long)
         next_ob_no = ptu.from_numpy(next_ob_no)
         reward_n = ptu.from_numpy(reward_n)
         terminal_n = ptu.from_numpy(terminal_n)
 
-        qa_t_values = self.q_net(ob_no)
-        q_t_values = torch.gather(qa_t_values, 1, ac_na.unsqueeze(1)).squeeze(1)
+        qa_t_values = self.q_net(ob_no) # outputs values for all actions
+        q_t_values = torch.gather(qa_t_values, 1, ac_na.unsqueeze(1)).squeeze(1) # get the values for the actions taken
         
         # TODO compute the Q-values from the target network 
         qa_tp1_values = self.q_net_target(next_ob_no)
@@ -79,7 +81,7 @@ class DQNCritic(BaseCritic):
             argmax_indices = torch.argmax(qa_on1_values, 1)
             q_tp1 = torch.gather(qa_tp1_values, 1, argmax_indices.unsqueeze(1)).squeeze(1)
         else:
-            q_tp1, _ = qa_tp1_values.max(dim=1)
+            q_tp1, _ = qa_tp1_values.max(dim=1) # actions that maximize the Q-value
 
         # TODO compute targets for minimizing Bellman error
         # HINT: as you saw in lecture, this would be:

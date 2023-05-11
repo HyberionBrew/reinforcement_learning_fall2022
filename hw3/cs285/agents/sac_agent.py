@@ -18,10 +18,13 @@ class SACAgent(BaseAgent):
         super(SACAgent, self).__init__()
 
         self.env = env
-        self.action_range = [
-            float(self.env.action_space.low.min()),
-            float(self.env.action_space.high.max())
-        ]
+        # check if env is discrete or continuous
+        if isinstance(env.action_space, gym.spaces.Discrete):
+            self.action_range = [0, env.action_space.n - 1]  # set the action range to [0, n-1]
+
+        else:
+            self.action_range = [float(env.action_space.low.min()), float(env.action_space.high.max())]
+
         self.agent_params = agent_params
         self.gamma = self.agent_params['gamma']
         self.critic_tau = 0.005
@@ -129,7 +132,6 @@ class SACAgent(BaseAgent):
         loss['Actor_Loss'] = actor_loss
         loss['Alpha_Loss'] = alpha_loss
         loss['Temperature'] = temperature
-        print("ji")
 
         return loss
 

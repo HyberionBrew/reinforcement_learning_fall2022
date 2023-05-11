@@ -28,7 +28,7 @@ class MLPPolicySAC(MLPPolicy):
         self.init_temperature = init_temperature
         self.learning_rate = learning_rate
 
-        self.log_alpha = torch.tensor(np.log(self.init_temperature)).to(ptu.device)
+        self.log_alpha = torch.tensor(np.log(self.init_temperature)).to(ptu.device) # log alpha such that it always remains positive(alpha)
         self.log_alpha.requires_grad = True
         self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=self.learning_rate)
 
@@ -75,6 +75,8 @@ class MLPPolicySAC(MLPPolicy):
             scale_tril = torch.exp(torch.clamp(self.logstd,self.log_std_bounds[0],self.log_std_bounds[1]))
             
             # You will need SquashedNormal from sac_utils file 
+            # We do this so that we are in the interval [-1,1] for output, since this is what the enviroment wants
+            # how does it perform if we simply clip the output I wonder?
             action_distribution = sac_utils.SquashedNormal(batch_mean, scale_tril)
 
             return action_distribution
@@ -86,12 +88,12 @@ class MLPPolicySAC(MLPPolicy):
         actions_distr = self(obs)
         action = actions_distr.sample()
         
-        log_prob = actions_distr.log_prob(action).sum(axis=1) # this term is used for exploration!
+        log_prob = actions_distr.log_prob(action).sum(axis=1) 
 
         q_1, q_2 = critic(obs, action)
         q_min = torch.min(q_1, q_2)
         
-        actor_loss = q_min.detach() - self.alpha.detach() * log_prob # why is it written in this direction, shoudl +/- be flipped?
+        actor_loss = - q_min.detach() + self.alpha.detach() * log_prob # basically argmax with additional term
         actor_loss = actor_loss.mean()
 
         self.optimizer.zero_grad()
@@ -100,8 +102,15 @@ class MLPPolicySAC(MLPPolicy):
 
 
         # now improve the alpha value
-        alpha_loss = (self.alpha * (log_prob.detach()  - self.target_entropy)).mean()
+        # this might not be correct do some thinking
+        # if log_prob is high (0 = no exploration) and target entropy is larger than we are positive (target entropy is negativ)
+        # so alpha is decreased (minimization)-> this leads to less exploration => wrong! We want more exploration
+        # if log_prob is low (-100 = a lot of exploration) 
+        # alpha_loss = (self.alpha * (log_prob.detach()  - self.target_entropy)).mean() 
         
+        # this should be correct high log_prob (0) -> low number -> alpha is increased -> more exploration
+        # low log_prob (-100) -> high number -> alpha is decreased -> less exploration 
+        alpha_loss = (self.alpha * (-log_prob.detach()  + self.target_entropy)).mean()
         self.log_alpha_optimizer.zero_grad()
         alpha_loss.backward()
         self.log_alpha_optimizer.step()
