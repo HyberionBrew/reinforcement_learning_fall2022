@@ -44,19 +44,20 @@ class MBAgent(BaseAgent):
         # NOTE: each model in the ensemble is trained on a different random batch of size batch_size
         losses = []
         num_data = ob_no.shape[0]
-        num_data_per_ens = int(num_data / self.ensemble_size)
+        num_data_per_env = int(num_data / self.ensemble_size)
 
         for i in range(self.ensemble_size):
 
             # select which datapoints to use for this model of the ensemble
             # you might find the num_data_per_env variable defined above useful
 
-            observations = # TODO(Q1)
-            actions = # TODO(Q1)
-            next_observations = # TODO(Q1)
+            # select from i-th * num_data_per_env to (i+1)-th * num_data_per_env
+            observations = ob_no[i * num_data_per_env:(i + 1) * num_data_per_env]
+            actions = ac_na[i * num_data_per_env:(i + 1) * num_data_per_env]
+            next_observations = next_ob_no[i * num_data_per_env:(i + 1) * num_data_per_env]
 
             # use datapoints to update one of the dyn_models
-            model =  # TODO(Q1)
+            model =  self.dyn_model[i] # TODO(Q1)
             log = model.update(observations, actions, next_observations,
                                 self.data_statistics)
             loss = log['Training Loss']
