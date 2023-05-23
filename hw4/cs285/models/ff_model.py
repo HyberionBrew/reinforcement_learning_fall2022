@@ -76,22 +76,26 @@ class FFModel(nn.Module, BaseModel):
             1. `next_obs_pred` which is the predicted `s_t+1`
             2. `delta_pred_normalized` which is the normalized (i.e. not
                 unnormalized) output of the delta network. This is needed 
-                for training i guess?^^
         """
         # normalize input data to mean 0, std 1
-        print(obs_std.shape)
         obs_normalized = (obs_unnormalized - obs_mean) / obs_std
         acs_normalized = (acs_unnormalized - acs_mean) / acs_std
+        # send to torch
+        obs_normalized = ptu.from_numpy(obs_normalized)
+        acs_normalized = ptu.from_numpy(acs_normalized)
 
         # predicted change in obs
         concatenated_input = torch.cat([obs_normalized, acs_normalized], dim=1)
+        # print the shape
 
         # TODO(Q1) compute delta_pred_normalized and next_obs_pred
         # Hint: as described in the PDF, the output of the network is the
         # *normalized change* in state, i.e. normalized(s_t+1 - s_t).
         delta_pred_normalized = self.delta_network(concatenated_input)
         # TODO check shapes and stuff!
-        next_obs_pred = obs_unnormalized + (delta_pred_normalized * delta_std + delta_mean)
+
+       
+        next_obs_pred = obs_unnormalized + (ptu.to_numpy(delta_pred_normalized) * delta_std + delta_mean)
         return next_obs_pred, delta_pred_normalized
 
     def get_prediction(self, obs, acs, data_statistics):
@@ -132,7 +136,8 @@ class FFModel(nn.Module, BaseModel):
         :return:
         """
         target = ((next_observations-observations) - data_statistics["delta_mean"]) / data_statistics["delta_std"]
-        
+        # target to tensor
+        target = ptu.from_numpy(target)
         # TODO(Q1) compute the normalized target for the model.
         # Hint: you should use `data_statistics['delta_mean']` and
         # `data_statistics['delta_std']`, which keep track of the mean
@@ -141,7 +146,6 @@ class FFModel(nn.Module, BaseModel):
         _, outs = self(observations,actions,data_statistics["obs_mean"],data_statistics["obs_std"],
                              data_statistics["acs_mean"], data_statistics["acs_std"], 
                              data_statistics["delta_mean"], data_statistics["delta_std"])
-        
 
         loss = self.loss(outs, target)
 

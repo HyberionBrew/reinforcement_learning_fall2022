@@ -44,7 +44,28 @@ class CQLCritic(BaseCritic):
 
     def dqn_loss(self, ob_no, ac_na, next_ob_no, reward_n, terminal_n):
         """ Implement DQN Loss """
+        # formula: theta = theta - alpha * MSE( Q(s,a) - y)
+        # where y is the better estimate of Q(s,a) = r + gamma * max_a' Q(s',a')
+        qa_t_values = self.q_net(ob_no) # all action values for the current state
+        # Q(s,a)
+        q_t_values = qa_t_values.gather(1, ac_na.unsqueeze(1)).squeeze(1) # get the action value for the action taken
 
+        # now target Q(s,a)
+        # Q(s',a')
+        qa_tp1_values = self.q_net_target(next_ob_no)
+
+        if self.double_q:
+            qa_on1_values = self.q_net(next_ob_no)
+            argmax_indices = torch.argmax(qa_on1_values, 1)
+            q_t1_values = torch.gather(qa_tp1_values, 1, argmax_indices.unsqueeze(1)).squeeze(1)
+        else:
+            q_t1_values = qa_tp1_values.max(dim=1)[0] # get the max action value for the next state
+        # y = r + gamma * max_a' Q(s',a')
+        target = reward_n + self.gamma * q_t1_values * (1 - terminal_n)
+        target = target.detach()
+        assert q_t_values.shape == target.shape
+        loss = self.loss(q_t_values, target)
+        
         return loss, qa_t_values, q_t_values
 
 
@@ -78,15 +99,24 @@ class CQLCritic(BaseCritic):
         # CQL Implementation
         # TODO: Implement CQL as described in the pdf and paper
         # Hint: After calculating cql_loss, augment the loss appropriately
-        q_t_logsumexp = None
-        cql_loss = None
+        q_t_logsumexp = torch.logsumexp(qa_t_values,dim=1)
+        assert q_t_logsumexp.shape == q_t_values.shape
+        print("q_t_logsumexp: ", q_t_logsumexp.shape)
+        cql_loss = self.cql_alpha * self.mean(q_t_logsumexp - q_t_values)
 
+        weighted_loss = loss + cql_loss
         info = {'Training Loss': ptu.to_numpy(loss)}
+        # optimize
+        self.optimizer.zero_grad()
+        weighted_loss.backward()
+        utils.clip_grad_value_(self.q_net.parameters(), self.grad_norm_clipping)
+        self.optimizer.step()
+        
 
         # TODO: Uncomment these lines after implementing CQL
-        # info['CQL Loss'] = ptu.to_numpy(cql_loss)
-        # info['Data q-values'] = ptu.to_numpy(q_t_values).mean()
-        # info['OOD q-values'] = ptu.to_numpy(q_t_logsumexp).mean()
+        info['CQL Loss'] = ptu.to_numpy(cql_loss)
+        info['Data q-values'] = ptu.to_numpy(q_t_values).mean()
+        info['OOD q-values'] = ptu.to_numpy(q_t_logsumexp).mean()
         
         self.learning_rate_scheduler.step()
 

@@ -97,6 +97,7 @@ class HalfCheetahEnv(mujoco_env.MujocoEnv, utils.EzPickle):
     def step(self, action):
 
         #step
+        # print(action.shape)
         self.do_simulation(action, self.frame_skip)
 
         #obs/reward/done/score
